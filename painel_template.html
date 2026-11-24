@@ -1,0 +1,1114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fila do RU Simulada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Atkinson+Hyperlegible:wght@400;700&family=Nothing+You+Could+Do&display=swap">
+<style>
+/* Layout: a primeira tela é um "slide" fixo de 1920×1080, escalado para caber na janela sem
+   rolagem: à esquerda a maquete 3D ao vivo, as três perguntas do passo e a fila minuto a minuto;
+   à direita, na ordem da fala, parâmetros, 1 ou 500 jantares e a validação.
+   Abaixo da tela ficam os cenários (próxima integrante) . Tema claro único. */
+:root {
+  --bg: #E9ECE6;
+  --ink: #22241F;
+  --muted: #4A4D45;
+  --azul: #2457A6;
+  --laranja: #E07B1A;
+  --laranja-txt: #B4560A;
+  --piso: #E4DCCB;
+  --piso-ref: #D8CDB6;
+  --parede: #D6D1C6;
+  --madeira: #C79A63;
+  --fita: #B3261E;
+  --planta: #3E7B4F;
+  --card: #FFFFFF;
+  --linha: #DCDFD7;
+  --pauta: #B7C7DE;
+  --f-titulo: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-texto: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mao: "Nothing You Could Do", "Segoe Script", "Bradley Hand", cursive;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 18px/1.45 var(--f-texto); overflow-x: hidden; }
+h1, h2, h3 { margin: 0; font-family: var(--f-titulo); text-wrap: balance; letter-spacing: -.02em; }
+p { margin: 0; }
+a { color: var(--ink); }
+button { font: inherit; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--azul); outline-offset: 3px; }
+.cartao { background: var(--card); border-radius: 20px; box-shadow: 0 1px 0 rgba(34,36,31,.08), 0 14px 32px rgba(34,36,31,.09); }
+
+/* ================= TELA DO SIMULADOR (1920×1080, escalada, sem rolagem) ================= */
+.tela { position: relative; width: 100%; overflow: hidden; }
+.stage { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; transform-origin: 0 0; padding: 24px 32px 28px; display: grid; grid-template-rows: 88px minmax(0, 1fr); gap: 18px; }
+.st-topo { display: flex; align-items: center; gap: 28px; }
+.st-titulo { flex: 1 1 auto; min-width: 0; }
+.st-titulo h1 { font-size: 48px; font-weight: 800; line-height: 1; }
+.st-titulo p { margin-top: 8px; font-size: 19px; color: var(--muted); }
+.st-relogio { display: flex; align-items: center; gap: 16px; }
+.relogio { font: 700 62px/1 var(--f-titulo); font-variant-numeric: tabular-nums; }
+.estado { padding: 10px 16px; border-radius: 999px; background: var(--azul); color: #FFFFFF; font-weight: 700; font-size: 18px; white-space: nowrap; }
+.estado.pico { background: var(--laranja-txt); }
+.estado.encerrado { background: var(--muted); }
+.st-play { display: flex; align-items: center; gap: 12px; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: #E2E5DE; flex-wrap: nowrap; }
+.seg button { min-height: 44px; min-width: 52px; padding: 0 15px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: 700 16px/1 var(--f-texto); cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #FFFFFF; }
+.btn { min-height: 52px; padding: 0 24px; border: 2px solid var(--ink); border-radius: 999px; background: transparent; color: var(--ink); font: 700 18px/1 var(--f-texto); cursor: pointer; white-space: nowrap; }
+.btn.primario { background: var(--ink); color: #FFFFFF; min-width: 190px; }
+.btn.mini { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.grupo { display: grid; gap: 4px; }
+.grupo > span { font-size: 14px; color: var(--muted); }
+
+.cena-cartao { display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; min-height: 0; }
+.palco { position: relative; overflow: hidden; perspective: 3600px; perspective-origin: 50% 20%; display: flex; align-items: center; justify-content: center; background: var(--bg); min-height: 0; }
+.piso {
+  position: relative; flex: none; width: 1000px; height: 560px; transform-style: preserve-3d;
+  zoom: 1.5; transform: translateY(32px) rotateX(52deg); /* zoom em vez de scale: o navegador desenha a cena já no tamanho final, sem borrar */
+  background-color: var(--piso);
+  background-image: linear-gradient(rgba(120,100,70,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(120,100,70,.14) 1px, transparent 1px);
+  background-size: 32px 32px; box-shadow: 0 0 0 6px #B9B2A3;
+}
+.contas { position: absolute; right: 20px; top: 16px; z-index: 2; margin: 0; display: grid; grid-template-columns: repeat(6, auto); gap: 4px 26px; background: rgba(255,255,255,.88); padding: 12px 20px; border-radius: 14px; }
+.contas div { display: grid; gap: 0; }
+.contas dt { font-size: 14px; color: var(--muted); white-space: nowrap; }
+.contas dd { margin: 0; font: 700 30px/1.1 var(--f-titulo); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.contas dd small { font-size: 16px; font-weight: 500; }
+.cena-rodape { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 22px; padding: 14px 22px 16px; border-top: 1px solid var(--linha); }
+.legenda-cena { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 15.5px; color: var(--muted); margin-left: auto; align-self: center; }
+.legenda-cena span { display: inline-flex; align-items: center; gap: 7px; }
+.legenda-cena i { width: 15px; height: 15px; border-radius: 50%; display: inline-block; }
+.proximo { font-weight: 700; font-size: 16px; color: var(--azul); text-decoration: none; align-self: center; white-space: nowrap; }
+
+.fim { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(233, 236, 230, .78); z-index: 5; }
+.fim-caixa { background: var(--card); border-radius: 18px; padding: 26px 36px; display: grid; gap: 8px; text-align: center; box-shadow: 0 18px 40px rgba(34,36,31,.16); }
+.fim-caixa .rot { font-size: 17px; color: var(--muted); }
+.fim-caixa .grande { font: 800 64px/1 var(--f-titulo); color: var(--azul); }
+.fim-caixa p { max-width: 46ch; color: var(--muted); font-size: 18px; }
+
+/* ================= seções abaixo do simulador ================= */
+.perguntas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.pq { background: var(--card); border-radius: 16px; padding: 16px 20px; display: grid; gap: 4px; border: 2px solid transparent; transition: border-color .15s, background-color .15s; }
+.pq .q { font-size: 16px; color: var(--muted); }
+.pq .r { font: 700 30px/1.1 var(--f-titulo); font-variant-numeric: tabular-nums; }
+.pq .r small { font-size: 16px; font-weight: 500; color: var(--muted); }
+.pq.aceso { border-color: var(--azul); background: #EEF3FB; }
+.pq.aceso.pico-on { border-color: var(--laranja); background: #FCF1E6; }
+.como-grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 20px; align-items: start; }
+.bloco-p { padding: 20px 22px; display: grid; gap: 12px; min-width: 0; align-content: start; }
+.bloco-p h3, .graf-cartao h3 { font-size: 22px; font-weight: 800; }
+.params { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+.params dt { font-size: 14.5px; color: var(--muted); }
+.params dd { margin: 0; font: 700 28px/1.1 var(--f-titulo); font-variant-numeric: tabular-nums; }
+.params dd small { font-size: 14.5px; font-weight: 500; }
+.graf-cartao { padding: 18px 22px 14px; display: grid; gap: 10px; min-width: 0; }
+.graf-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 20px; flex-wrap: wrap; }
+svg.graf { width: 100%; height: auto; display: block; overflow: visible; }
+svg.graf .grade { stroke: #E3E5DF; stroke-width: 1; }
+svg.graf .eixo { fill: var(--muted); font: 13px var(--f-texto); }
+svg.graf .rot { fill: var(--laranja-txt); font: 700 13px var(--f-texto); }
+svg.graf .marca-txt { font: 700 16px var(--f-texto); }
+.legenda { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 15px; }
+.legenda span { display: inline-flex; align-items: center; gap: 7px; }
+.legenda i { display: inline-block; width: 24px; height: 0; border-top: 3px solid; }
+.legenda i.faixa { width: 16px; height: 12px; border: 0; border-radius: 3px; }
+.legenda i.trac { border-top-style: dashed; }
+.val-graf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.val-graf figure { margin: 0; padding: 18px 22px 12px; display: grid; gap: 8px; }
+.val-graf figcaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
+.val-graf figcaption b { font-family: var(--f-titulo); font-size: 20px; }
+.tag { font-weight: 700; font-size: 14px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.tag.az { background: rgba(36,87,166,.12); color: var(--azul); }
+.tag.la { background: rgba(224,123,26,.16); color: var(--laranja-txt); }
+.val-extra { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 26px; }
+.val-caixa { padding: 18px 22px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.val-caixa h3 { margin: 0; font: 700 20px/1.2 var(--f-titulo); }
+.val-caixa p { margin: 0; font-size: 15px; color: var(--muted); }
+.val-tab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.val-tab th, .val-tab td { padding: 6px 8px; text-align: right; border-bottom: 1px solid rgba(34,36,31,.12); }
+.val-tab th:first-child, .val-tab td:first-child { text-align: left; }
+.val-tab th { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.val-tab td { font-size: 18px; }
+.val-tab td b { font: 800 22px var(--f-titulo); }
+.val-tab .ok { color: #2B7A4B; font-weight: 700; }
+.val-tab .nao { color: #B3261E; font-weight: 700; }
+.val-sub { margin: 0 0 14px; font: 600 17px/1.35 var(--f-texto, inherit); color: var(--muted); }
+.val-num { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 20px; padding: 20px 22px; }
+.val-num div { display: grid; gap: 2px; }
+.val-num span { font-size: 15px; color: var(--muted); }
+.val-num b { font: 800 44px/1.05 var(--f-titulo); font-variant-numeric: tabular-nums; }
+.val-num b small { font-size: 18px; font-weight: 500; }
+.val-num em { font-style: normal; font-size: 15px; color: var(--muted); }
+@media (max-width: 900px) {
+  .perguntas, .como-grade, .val-graf, .val-num, .val-extra { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ================= CENA 3D: objetos ================= */
+.piso-ref {
+  position: absolute; left: 720px; top: 0; right: 0; bottom: 0; background-color: var(--piso-ref);
+  background-image: linear-gradient(rgba(120,100,70,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(120,100,70,.10) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+.camada { position: absolute; inset: 0; transform-style: preserve-3d; }
+.no3d { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
+.bb { position: absolute; bottom: 0; transform-origin: 50% 100%; transform: rotateX(-90deg); }
+.parede { position: absolute; background: var(--parede); }
+.relogio-parede { position: absolute; left: 190px; top: 14px; width: 58px; height: 58px; border-radius: 50%; background: #FFFFFF; border: 4px solid #3B3A36; }
+.relogio-parede span { position: absolute; left: 50%; top: 50%; border-radius: 2px; transform-origin: 50% 100%; }
+.relogio-parede .ph { width: 3px; height: 14px; background: var(--ink); }
+.relogio-parede .pm { width: 2px; height: 20px; background: var(--fita); }
+.placa { position: absolute; left: 520px; top: 22px; padding: 6px 14px; background: #2F6B4F; color: #FFFFFF; font: 700 20px/1.2 var(--f-titulo); border-radius: 4px; white-space: nowrap; }
+.fita { position: absolute; border-top: 3px solid var(--fita); transform: translateZ(22px); }
+.mesa-sombra { position: absolute; background: rgba(0,0,0,.16); border-radius: 6px; }
+.mesa-tampo { position: absolute; background: #B98552; border-radius: 6px; transform: translateZ(30px); box-shadow: inset 0 0 0 3px #A3743F; }
+.mesa-ref { position: absolute; background: var(--madeira); border-radius: 5px; transform: translateZ(24px); box-shadow: inset 0 0 0 3px #AD8250; }
+.papel { position: absolute; left: 9px; top: 12px; right: 9px; bottom: 12px; background: #FFFFFF; transform: rotate(-4deg); display: flex; flex-direction: column; justify-content: flex-end; padding: 2px 3px; gap: 1px; }
+.papel div { height: 15px; border-bottom: 1px solid var(--pauta); font: 400 11px/14px var(--f-mao); white-space: nowrap; overflow: hidden; position: relative; }
+.papel div span { display: inline-block; overflow: hidden; vertical-align: bottom; }
+.papel div.fechada::after { content: ""; position: absolute; left: 0; bottom: 1px; height: 1.5px; width: 100%; background: var(--azul); transform-origin: 0 50%; animation: traco .35s ease-out; }
+@keyframes traco { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.pessoa { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; transition-property: transform; transition-timing-function: linear; }
+.mancha { position: absolute; left: -16px; top: -10px; width: 32px; height: 20px; border-radius: 50%; }
+.pessoa .bb { left: -12px; width: 24px; height: 56px; }
+.pessoa.sentado .bb { transform: rotateX(-90deg) translateY(-16px); }
+.pessoa.sentado .mancha, .pessoa.sentado .perna { display: none; }
+.vira { width: 100%; height: 100%; transition: transform .18s; }
+.vira.esq { transform: scaleX(-1); }
+.inclina { width: 100%; height: 100%; transform-origin: 50% 100%; transition: transform .25s; }
+.corpo { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 100%; }
+.corpo .perna, .corpo .braco { transform-box: fill-box; transform-origin: 50% 0; }
+.corpo .caneta { display: none; }
+.pessoa:not(.andando):not(.assinando) .corpo { animation: respira 3s ease-in-out infinite; animation-delay: var(--atraso, 0s); }
+@keyframes respira { 50% { transform: scale(1.015); } }
+.andando .pe { animation: pernaA .45s linear infinite; }
+.andando .pd { animation: pernaB .45s linear infinite; }
+.andando .be { animation: bracoA .45s linear infinite; }
+.andando .bd { animation: bracoB .45s linear infinite; }
+.andando .tronco-g { animation: sobe .225s ease-in-out infinite; }
+@keyframes pernaA { 0%, 100% { transform: rotate(18deg); } 50% { transform: rotate(-18deg); } }
+@keyframes pernaB { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
+@keyframes bracoA { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
+@keyframes bracoB { 0%, 100% { transform: rotate(12deg); } 50% { transform: rotate(-12deg); } }
+@keyframes sobe { 50% { transform: translateY(-1.5px); } }
+.assinando .inclina { transform: rotate(6deg); }
+.assinando .bd { animation: escreve .5s ease-in-out infinite; }
+.assinando .caneta { display: inline; }
+@keyframes escreve { 0%, 100% { transform: rotate(-58deg); } 50% { transform: rotate(-44deg) translateX(.6px); } }
+.funcionario .cabeca { transform-box: fill-box; transform-origin: 50% 100%; }
+.funcionario.acena .cabeca { animation: acena .45s ease-in-out; }
+@keyframes acena { 40% { transform: rotate(9deg) translateY(.6px); } }
+
+/* ================= abaixo da tela: cenários ================= */
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.bloco { padding-block: 48px; scroll-margin-top: 10px; }
+.sec-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 12px 32px; margin-bottom: 16px; }
+.sec-head h2 { font-weight: 800; font-size: clamp(30px, 3.6vw, 40px); }
+.sec-head h3 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+.sec-head p { flex-basis: 100%; max-width: 70ch; color: var(--muted); font-size: 17px; }
+.graf-rolavel { overflow-x: auto; padding: 22px; }
+.graf-rolavel svg { min-width: 640px; height: auto; }
+.cen-lista { padding: 10px 22px; }
+.cen-linha { display: grid; grid-template-columns: minmax(170px, 240px) minmax(0, 1fr) 120px 190px; gap: 20px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--linha); }
+.cen-linha:last-child { border-bottom: 0; }
+.cen-lista .cen-linha:first-child { padding-top: 34px; }
+.cen-nome { font-weight: 700; font-size: 18px; }
+.cen-nome small { display: block; font-weight: 400; font-size: 14px; color: var(--muted); }
+.cen-barra { position: relative; height: 44px; }
+.cen-barra .trilho { position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--linha); }
+.cen-barra .barra { position: absolute; left: 0; top: 10px; height: 24px; border-radius: 6px; }
+.cen-barra .bigode { position: absolute; top: 15px; height: 14px; border: 2px solid var(--ink); border-top: 0; border-bottom: 0; }
+.cen-barra .bigode::after { content: ""; position: absolute; left: 0; right: 0; top: 6px; border-top: 2px solid var(--ink); }
+.cen-barra .meta { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--fita); }
+.cen-barra .meta span { position: absolute; top: -24px; left: 6px; font-weight: 700; font-size: 13.5px; color: var(--fita); white-space: nowrap; }
+.cen-barra .valor { position: absolute; top: 9px; font: 700 20px/26px var(--f-titulo); white-space: nowrap; padding-left: 12px; }
+.cen-p { text-align: right; }
+.cen-p b { font: 800 34px/1 var(--f-titulo); display: block; }
+.cen-p span { font-size: 13px; color: var(--muted); }
+.cen-graf { margin-top: 24px; }
+footer { margin-top: 12px; border-top: 1px solid var(--linha); padding-block: 30px 64px; font-size: 16px; }
+footer .wrap { display: grid; gap: 12px; }
+footer ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 82ch; }
+footer .gerado { font-size: 14px; color: var(--muted); }
+@media (max-width: 620px) {
+  .cen-linha { grid-template-columns: minmax(0, 1fr) 96px; }
+  .cen-linha .cen-barra { grid-column: 1 / -1; grid-row: 2; }
+  .cen-linha .btn { grid-column: 1 / -1; justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .andando .pe, .andando .pd, .andando .be, .andando .bd, .andando .tronco-g { animation: none; }
+  .pessoa:not(.andando):not(.assinando) .corpo { animation: none; }
+  .assinando .inclina { transform: none; }
+  .assinando .bd { animation: none; transform: rotate(-50deg); }
+  .funcionario.acena .cabeca { animation: none; }
+  .papel div.fechada::after { animation: none; }
+  .pq { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= TELA DO SIMULADOR ================= -->
+<div class="tela" id="tela">
+  <div class="stage" id="stage">
+    <header class="st-topo">
+      <div class="st-titulo">
+        <h1>A fila do RU, simulada</h1>
+        <p>Jantar de 17h20 às 18h20 · 1 ponto de assinatura · <span data-v="n0"></span> alunos já na fila</p>
+      </div>
+      <div class="st-relogio">
+        <div class="relogio" id="relogio">17:20</div>
+        <span class="estado" id="fase">Calma</span>
+      </div>
+      <div class="st-play">
+        <button type="button" class="btn primario" id="btn-play">Começar o jantar</button>
+        <button type="button" class="btn" id="btn-reset">Recomeçar</button>
+        <div class="grupo">
+          <span>Velocidade</span>
+          <div class="seg" id="seg-vel" role="group" aria-label="Velocidade"></div>
+        </div>
+      </div>
+    </header>
+
+    <section class="cartao cena-cartao" id="simulacao" aria-label="Simulador">
+      <div class="palco" id="palco" role="img" aria-label="RU visto de frente">
+        <dl class="contas">
+          <div><dt>No sistema</dt><dd id="c-n">0</dd></div>
+          <div><dt>Na fila</dt><dd id="c-fila">0</dd></div>
+          <div><dt>Chegaram</dt><dd id="c-cheg">0</dd></div>
+          <div><dt>Assinaram</dt><dd id="c-sai">0</dd></div>
+          <div><dt>L até agora</dt><dd id="c-l">–</dd></div>
+          <div><dt>W até agora</dt><dd id="c-w">–</dd></div>
+        </dl>
+        <div class="piso" id="piso">
+          <div class="piso-ref"></div>
+          <div class="camada" id="cenario-fixo"></div>
+          <div class="camada" id="camada-pessoas"></div>
+        </div>
+        <div class="fim" id="fim" hidden>
+          <div class="fim-caixa">
+            <span class="rot">Jantar encerrado às 18h20</span>
+            <div class="grande" id="fim-w"></div>
+            <p id="fim-txt"></p>
+          </div>
+        </div>
+      </div>
+      <div class="cena-rodape">
+        <div class="grupo">
+          <span>Chegadas</span>
+          <div class="seg" id="seg-modo" role="group" aria-label="Chegadas">
+            <button type="button" id="modo-medidas" data-modo="medidas" aria-pressed="true">As medidas</button>
+            <button type="button" id="modo-sorteadas" data-modo="sorteadas" aria-pressed="false">Sorteadas</button>
+          </div>
+        </div>
+        <div class="grupo">
+          <span>Cenário</span>
+          <div class="seg" id="seg-cen" role="group" aria-label="Cenário"></div>
+        </div>
+        <div class="legenda-cena" aria-hidden="true">
+          <span>Sem marca no chão: já esperava às 17h20</span>
+          <span><i style="background:rgba(36,87,166,.45)"></i>chegou na calma</span>
+          <span><i style="background:rgba(224,123,26,.6)"></i>chegou no pico</span>
+        </div>
+        <a class="proximo" href="#como">Como funciona ↓</a>
+      </div>
+    </section>
+  </div>
+</div>
+
+<main class="wrap">
+  <!-- ================= COMO FUNCIONA ================= -->
+  <section id="como" class="bloco">
+    <div class="sec-head">
+      <h2>A cada 0,25 s, três sorteios</h2>
+      <p id="passo-txt">passo 0 de 14.400 · <span data-v="R"></span> jantares</p>
+    </div>
+    <div class="perguntas" aria-label="O que o modelo sorteia a cada passo">
+      <div class="pq" id="pq-cheg"><span class="q">Chegou alguém?</span><span class="r" id="pq-cheg-r">0 <small>chegadas</small></span></div>
+      <div class="pq" id="pq-etapa"><span class="q">A assinatura andou uma etapa?</span><span class="r" id="pq-etapa-r">–</span></div>
+      <div class="pq" id="pq-fase"><span class="q">Entrou ou saiu do pico?</span><span class="r" id="pq-fase-r">Calma</span></div>
+    </div>
+    <div class="como-grade">
+      <div class="cartao bloco-p" id="parametros">
+        <h3>Lido das planilhas</h3>
+        <dl class="params" id="params"></dl>
+      </div>
+      <div class="cartao graf-cartao">
+        <div class="graf-topo">
+          <h3>A fila minuto a minuto</h3>
+          <div class="legenda">
+            <span><i style="color:var(--ink)"></i>Medido</span>
+            <span><i style="color:var(--azul)"></i>Este jantar</span>
+            <span><i class="faixa" style="background:rgba(36,87,166,.18)"></i><span id="leg-faixa">Faixa de 90%</span></span>
+            <span><i class="faixa" style="background:rgba(224,123,26,.24)"></i>Pico</span>
+          </div>
+        </div>
+        <svg class="graf" id="g-vivo" viewBox="0 0 760 280" role="img" aria-label="Tamanho da fila medido e simulado entre 17h20 e 18h20"></svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= VALIDAÇÃO ================= -->
+  <section id="validacao" class="bloco">
+    <div class="sec-head">
+      <h2>O modelo bate com a realidade?</h2>
+      <p>Primeiro conferimos o programa e as chegadas. Depois, o atendimento.</p>
+    </div>
+    <div class="val-extra">
+      <div class="cartao val-caixa" id="val-pi"></div>
+      <div class="cartao val-caixa" id="val-d"></div>
+    </div>
+    <h3 class="val-sub">Atendimento: repetimos as chegadas exatamente como foram anotadas e sorteamos só o atendimento. Mesma escala nos dois.</h3>
+    <div class="val-graf" id="val-graf"></div>
+    <div class="cartao val-num" id="val-num"></div>
+  </section>
+
+  <!-- ================= CENÁRIOS ================= -->
+  <section id="cenarios" class="bloco">
+    <div class="sec-head">
+      <h2>O que leva o tempo para menos de 5 minutos</h2>
+      <p>Modelo validado, <span data-v="R"></span> jantares por cenário, mudando uma coisa por vez. A barra mostra o tempo médio no sistema e a faixa de 90%; a coluna da direita, em quantos jantares a meta foi cumprida.</p>
+    </div>
+    <div class="cartao cen-lista" id="cen-lista"></div>
+    <div class="cen-graf">
+      <div class="sec-head" style="margin-bottom:10px">
+        <h3>Fila média ao longo do jantar</h3>
+        <div class="legenda" id="leg-cen"></div>
+      </div>
+      <div class="cartao graf-rolavel">
+        <svg class="graf" id="g-cen" viewBox="0 0 1100 300" role="img" aria-label="Fila média por cenário"></svg>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <strong>Limites do estudo</strong>
+    <ul>
+      <li>Um único dia atípico (JINU, leitor de QR Code fora do ar), com só 3 picos observados.</li>
+      <li>O 2.º atendente foi suposto tão rápido quanto o 1.º. Os 4 s por aluno do QR Code são hipótese, não medição.</li>
+      <li>O tempo no refeitório da animação é só ilustrativo e não entra em nenhuma conta.</li>
+    </ul>
+    <p class="gerado" id="rodape-gerado"></p>
+  </div>
+</footer>
+
+<script type="application/json" id="dados">__DADOS_JSON__</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("dados").textContent);
+const P = D.P, M = D.medicao;
+const DUR = P.duracao, DT_S = 0.25, DT = DT_S / 60, POR_MIN = Math.round(60 / DT_S), PASSOS = DUR * POR_MIN;
+
+// ---------------------------------------------------------------- utilidades
+const fmt = (v, d = 2) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = v => Math.round(v * 100) + "%";
+const pct1 = v => fmt(v * 100, 1) + "%";
+const hora = min => { const t = 17 * 60 + 20 + min; return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); };
+const $ = id => document.getElementById(id);
+const cor = nome => getComputedStyle(document.documentElement).getPropertyValue("--" + nome).trim();
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, pai) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (pai) pai.appendChild(e); return e; };
+const media = a => a.reduce((s, v) => s + v, 0) / a.length;
+const REDUZ = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+document.querySelectorAll("[data-v]").forEach(e => { e.textContent = D[e.dataset.v] ?? P[e.dataset.v]; });
+$("rodape-gerado").textContent = `Gerado por simulador_ru_jantar.py em ${D.gerado} · ${D.R} jantares por modelo · semente 42.`;
+
+// ---------------------------------------------------------------- tela de apresentação: escala para caber sem rolagem
+function ajustarTela() {
+  const w = document.documentElement.clientWidth, h = window.innerHeight;
+  const s = Math.min(w / 1920, h / 1080);
+  const st = $("stage");
+  st.style.zoom = s;   // zoom (e não transform: scale) mantém a cena 3D nítida
+  st.style.left = Math.max(0, (w - 1920 * s) / 2 / s) + "px";
+  $("tela").style.height = (1080 * s) + "px";
+}
+ajustarTela();
+window.addEventListener("resize", ajustarTela);
+
+// ---------------------------------------------------------------- parâmetros
+const itens = [
+  ["Chegadas na calma", fmt(P.lam_c), "por min"],
+  ["Chegadas no pico", fmt(P.lam_p), "por min"],
+  ["Assinatura média", fmt(P.s_medio) + " s", `CV ${fmt(P.cv)}`],
+  ["Calma vira pico", fmt(P.p_cp * 100, 1) + "%", `por min (${P.n_cp} de ${P.n_c})`],
+  ["Pico vira calma", fmt(P.p_pc * 100, 1) + "%", `por min (${P.n_pc} de ${P.n_p})`],
+  ["Etapas da assinatura", String(P.k), "= 1 ÷ CV²"],
+];
+$("params").innerHTML = itens.map(([t, v, s]) => `<div><dt>${t}</dt><dd>${v} <small>${s}</small></dd></div>`).join("");
+
+// ---------------------------------------------------------------- gráfico de linhas genérico
+function grafico(svg, cfg) {
+  const vb = svg.viewBox.baseVal, W = vb.width, H = vb.height;
+  const m = Object.assign({ l: 36, r: 12, t: 10, b: 24 }, cfg.margem || {});
+  const yMax = cfg.yMax;
+  const x = i => m.l + (i / (DUR - 1)) * (W - m.l - m.r);
+  const y = v => H - m.b - (v / yMax) * (H - m.t - m.b);
+  svg.innerHTML = "";
+  const passoY = cfg.passoY || (yMax > 30 ? 20 : 10);
+  if (cfg.picos) {
+    M.fase.forEach((f, i) => {
+      if (f === "P") el("rect", { x: x(i) - (x(1) - x(0)) / 2, y: m.t, width: x(1) - x(0), height: H - m.t - m.b, fill: cor("laranja"), "fill-opacity": .22 }, svg);
+    });
+  }
+  for (let v = 0; v <= yMax; v += passoY) {
+    el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: "grade" }, svg);
+    el("text", { x: m.l - 7, y: y(v) + 4, "text-anchor": "end", class: "eixo" }, svg).textContent = v;
+  }
+  el("line", { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), stroke: cor("ink"), "stroke-width": 1.5 }, svg);
+  const passoX = cfg.passoX || 10;
+  for (let i = 0; i < DUR; i += passoX) {
+    el("text", { x: x(i), y: H - 5, "text-anchor": i === 0 ? "start" : "middle", class: "eixo" }, svg).textContent = hora(i).replace(":", "h");
+  }
+  if (cfg.marca1737) {
+    const xv = x(17.5);
+    el("line", { x1: xv, x2: xv, y1: m.t, y2: H - m.b, stroke: cor("laranja-txt"), "stroke-dasharray": "4 4", "stroke-width": 1.5 }, svg);
+    el("text", { x: xv + 6, y: m.t + 12, class: "rot" }, svg).textContent = "calibração até 17h37";
+  }
+  for (const s of cfg.series) {
+    if (s.tipo === "faixa") {
+      const ida = s.hi.map((v, i) => `${x(i)},${y(v)}`), volta = s.lo.map((v, i) => `${x(i)},${y(v)}`).reverse();
+      el("polygon", { points: ida.concat(volta).join(" "), fill: s.cor, "fill-opacity": s.op ?? .2, stroke: "none" }, svg);
+    } else {
+      const pts = s.dados.map((v, i) => (v === null || v === undefined) ? null : `${x(i)},${y(v)}`).filter(Boolean);
+      if (pts.length < 1) continue;
+      const pl = el("polyline", { points: pts.join(" "), fill: "none", stroke: s.cor, "stroke-width": s.w ?? 2, "stroke-linejoin": "round", "stroke-linecap": "round", "stroke-opacity": s.op ?? 1, "vector-effect": "non-scaling-stroke" }, svg);
+      if (s.tracejado) pl.setAttribute("stroke-dasharray", s.tracejado);
+      if (s.ponta && pts.length) {
+        const [px, py] = pts[pts.length - 1].split(",");
+        el("circle", { cx: px, cy: py, r: 5, fill: s.cor, stroke: "#FFFFFF", "stroke-width": 2 }, svg);
+      }
+    }
+  }
+  (cfg.marcas || []).forEach(mk => {
+    el("circle", { cx: x(mk.i), cy: y(mk.v), r: 5.5, fill: mk.cor, stroke: "#FFFFFF", "stroke-width": 2 }, svg);
+    el("text", { x: x(mk.i) + (mk.dx ?? 0), y: y(mk.v) + (mk.dy ?? -10), "text-anchor": mk.ancora || "middle", class: "marca-txt", fill: mk.corTxt || mk.cor }, svg).textContent = mk.txt;
+  });
+  return { x, y };
+}
+
+// ---------------------------------------------------------------- cenários
+const CEN = [
+  { cod: "atual", rot: "Hoje", desc: "1 atendente" },
+  { cod: "2_pico", rot: "2.º no pico", desc: "2.º atendente só no pico" },
+  { cod: "2_sempre", rot: "2 sempre", desc: "2 atendentes a hora toda" },
+  { cod: "qr", rot: "QR Code", desc: "hipótese: 4 s por aluno" },
+];
+const cenParams = cod => cod === "qr" ? { mu: P.mu_qr, k: 5 } : { mu: P.mu, k: P.k };
+
+// ================================================================ MOTOR DA SIMULAÇÃO (mesmo modelo do Python; não alterar)
+let modo = "medidas", cenario = "atual", vel = 20, rodando = false, S = null;
+
+function agendaMedida() {
+  const ag = new Uint8Array(PASSOS);
+  for (let mi = 0; mi < DUR; mi++) {
+    const idx = Array.from({ length: POR_MIN }, (_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    for (let c = 0; c < M.chegaram[mi]; c++) ag[mi * POR_MIN + idx[c]] = 1;
+  }
+  return ag;
+}
+
+let proxId = 0;
+// "chegou" e "assinou" só alimentam a cena; não entram no sorteio
+function novoAluno(tipo, t) { return { id: proxId++, tipo, chegou: t }; }
+
+function novoJantar() {
+  S = {
+    t: 0, n: P.n0, fila: [], serv: [{ e: -1, aluno: null }, { e: -1, aluno: null }],
+    pico: false, arr: new Array(DUR).fill(0), sai: new Array(DUR).fill(0), nmin: [], assinados: [],
+    agenda: modo === "medidas" ? agendaMedida() : null, acum: 0,
+  };
+  for (let i = 0; i < P.n0; i++) S.fila.push(novoAluno("inicial", 0));
+}
+
+function passo() {
+  const m = Math.floor(S.t / POR_MIN), tsec = S.t * DT_S;
+  let chegou;
+  if (S.agenda) {
+    S.pico = M.fase[m] === "P";
+    chegou = S.agenda[S.t] === 1;
+  } else {
+    const u = Math.random();
+    S.pico = S.pico ? u >= P.p_pc * DT : u < P.p_cp * DT;
+    chegou = Math.random() < (S.pico ? P.lam_p : P.lam_c) * DT;
+  }
+  if (chegou && S.n < P.kmax) { S.fila.push(novoAluno(S.pico ? "pico" : "calma", S.t)); S.n++; S.arr[m]++; }
+  const { mu, k } = cenParams(cenario), q = k * mu * DT;
+  S.serv.forEach((s, j) => {
+    if (s.e >= 0 && Math.random() < q) {
+      s.e++;
+      if (s.e === k) {
+        s.e = -1;
+        if (s.aluno) S.assinados.push({ ...s.aluno, assinou: S.t, ponto: j + 1 });
+        s.aluno = null; S.n--; S.sai[m]++;
+      }
+    }
+  });
+  const s1 = S.serv[0], s2 = S.serv[1];
+  if (s1.e < 0 && S.fila.length > 0 && tsec >= (tsec < 120 ? P.partida_fria : 0)) { s1.e = 0; s1.aluno = S.fila.shift(); }
+  const pode2 = cenario === "2_sempre" || (cenario === "2_pico" && S.pico);
+  if (s2.e < 0 && S.fila.length > 0 && pode2) { s2.e = 0; s2.aluno = S.fila.shift(); }
+  S.t++;
+  if (S.t % POR_MIN === 0) S.nmin.push(S.n);
+}
+
+function jantarInstantaneo() {   // usado no "sortear outro jantar"
+  const guarda = { modo, cenario, S };
+  modo = "sorteadas"; cenario = "atual"; novoJantar();
+  while (S.t < PASSOS) passo();
+  const r = S.nmin.slice();
+  ({ modo, cenario, S } = guarda);
+  return r;
+}
+// ================================================================ FIM DO MOTOR
+
+// Retrato somente-leitura do estado, entregue à cena a cada quadro.
+function instantaneo(desde) {
+  const { k } = cenParams(cenario);
+  return Object.freeze({
+    t: S.t, fim: S.t >= PASSOS, pico: S.pico, k, cenario,
+    dois: cenario === "2_pico" || cenario === "2_sempre",
+    aberta2: cenario === "2_sempre" || (cenario === "2_pico" && S.pico),
+    fila: Object.freeze(S.fila.map(a => Object.freeze({ id: a.id, tipo: a.tipo }))),
+    mesas: Object.freeze(S.serv.map(s => s.aluno ? Object.freeze({ id: s.aluno.id, tipo: s.aluno.tipo, e: s.e }) : null)),
+    novos: Object.freeze(S.assinados.slice(desde).map(a => Object.freeze({ ...a }))),
+    total: S.assinados.length,
+  });
+}
+
+// ---------------------------------------------------------------- nomes e aparência (derivados do id)
+const NOMES_A = ["Ana", "Bruno", "Carla", "Diego", "Elaine", "Felipe", "Gabriela", "Hugo", "Iara", "João", "Kelly", "Lucas", "Maria", "Nayara", "Otávio", "Paula", "Rafael", "Sabrina", "Thiago", "Vitória"];
+const primeiro = id => NOMES_A[(id * 7) % NOMES_A.length];
+const tinta = tipo => tipo === "pico" ? "var(--laranja-txt)" : tipo === "calma" ? "var(--azul)" : "var(--ink)";
+
+function aparencia(id) {
+  const peles = ["#8D5524", "#C68642", "#E0AC69", "#F1C27D", "#6B4226", "#A1665E", "#D9A066"];
+  const cabelos = ["#1B1B1B", "#3B2A1A", "#5A3A22", "#2B2B2B", "#7A5230", "#141414"];
+  const camisas = ["#2F5D8A", "#C9503C", "#E2B13C", "#3E7B4F", "#7B4B94", "#F2F2F2", "#2B2B2B", "#D9739A", "#4FA3A5", "#9AA4B0", "#E07B1A"];
+  const mochilas = ["#22241F", "#5B4636", "#3A4A6B"];
+  const calcas = ["#2E3A55", "#3B3A36", "#5C6B7A", "#6B4F3A", "#22241F", "#8A7F6E"];
+  const curto = "M5 9 C5 1.5 19 1.5 19 9 C16 6 8 6 5 9 Z";
+  const longo = "M4.5 10 C4.5 1 19.5 1 19.5 10 L20 21 L17 17 L17 9 C15 6 9 6 7 9 L7 17 L4 21 Z";
+  return {
+    pele: peles[(id * 5) % peles.length], cabelo: cabelos[(id * 3) % cabelos.length],
+    camisa: camisas[(id * 7) % camisas.length], calca: calcas[(id * 5 + 1) % calcas.length],
+    fio: id % 2 === 0 ? longo : curto, mochila: id % 3 === 0 ? mochilas[id % mochilas.length] : null,
+  };
+}
+function svgPessoa(a) {
+  return `<svg class="corpo" viewBox="0 0 24 56" aria-hidden="true">
+    <g class="perna pe"><rect x="7" y="34" width="4.5" height="20" rx="2" fill="${a.calca}"/></g>
+    <g class="perna pd"><rect x="12.5" y="34" width="4.5" height="20" rx="2" fill="${a.calca}"/></g>
+    <g class="tronco-g">
+      <g class="braco be"><rect x="2.5" y="17" width="3.5" height="15" rx="1.75" fill="${a.camisa}"/><circle cx="4.25" cy="33" r="2" fill="${a.pele}"/></g>
+      <rect x="5" y="16" width="14" height="20" rx="5" fill="${a.camisa}"/>
+      ${a.mochila ? `<path d="M8 17 L8 30" stroke="${a.mochila}" stroke-width="2" stroke-linecap="round"/>` : ""}
+      <circle cx="12" cy="9" r="6.5" fill="${a.pele}"/>
+      <path d="${a.fio}" fill="${a.cabelo}"/>
+      <g class="braco bd"><rect x="18" y="17" width="3.5" height="15" rx="1.75" fill="${a.camisa}"/><circle cx="19.75" cy="33" r="2" fill="${a.pele}"/><line class="caneta" x1="19.75" y1="33" x2="21.5" y2="38" stroke="#2457A6" stroke-width="1.3" stroke-linecap="round"/></g>
+    </g>
+  </svg>`;
+}
+const svgFuncionario = `<svg class="corpo" viewBox="0 0 24 56" aria-hidden="true">
+  <rect x="7" y="34" width="4.5" height="20" rx="2" fill="#2B2B2B"/><rect x="12.5" y="34" width="4.5" height="20" rx="2" fill="#2B2B2B"/>
+  <rect x="2.5" y="17" width="3.5" height="15" rx="1.75" fill="#F4F4F0"/><rect x="18" y="17" width="3.5" height="15" rx="1.75" fill="#F4F4F0"/>
+  <rect x="5" y="16" width="14" height="20" rx="5" fill="#F4F4F0"/>
+  <g class="cabeca"><circle cx="12" cy="9" r="6.5" fill="#A86A3D"/><path d="M5 8 C5 1.5 19 1.5 19 8 Z" fill="#2457A6"/></g>
+</svg>`;
+
+// ================================================================ CENA 3D (só lê o instantâneo)
+const Cena = (() => {
+  const ANG = 0, COS = Math.cos(ANG * Math.PI / 180), SIN = Math.sin(ANG * Math.PI / 180);
+  const fixo = $("cenario-fixo"), camada = $("camada-pessoas");
+  const ENTRADA_FORA = { x: 490, y: 592 }, ENTRADA_DENTRO = { x: 490, y: 535 };
+  const SAIDA_DENTRO = { x: 890, y: 535 }, SAIDA_FORA = { x: 890, y: 592 };
+  const MESA = [{ x: 595, y: 50, w: 75, h: 123, pessoa: { x: 572, y: 112 }, func: { x: 700, y: 112 }, rota: { x: 585, y: 24 } },
+                { x: 595, y: 192, w: 75, h: 123, pessoa: { x: 572, y: 254 }, func: { x: 700, y: 254 }, rota: { x: 585, y: 340 } }];
+  const MESAS_REF = Array.from({ length: 8 }, (_, k) => ({ x: k % 2 === 0 ? 755 : 875, y: 70 + Math.floor(k / 2) * 123, w: 90, h: 39 }));
+  const LUGARES = Array.from({ length: 32 }, (_, n) => {
+    const t = MESAS_REF[Math.floor(n / 4)], sp = n % 4;
+    const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
+    return { x: cx + (sp % 2 === 0 ? -26 : 26), y: sp < 2 ? cy - 40 : cy + 40 };
+  });
+  const REFEICAO = 12 * POR_MIN;           // 12 min simulados, só visual
+
+  function posFila(i) {
+    const per = 11, lane = Math.floor(i / per), j = i % per, passo = 42;
+    if (lane === 0) return { x: 520 - j * passo, y: 112 };
+    if (lane === 1) return { x: 100 + j * passo, y: 213 };
+    if (lane === 2) return { x: 520 - j * passo, y: 314 };
+    if (lane === 3) return { x: 100 + j * passo, y: 414 };
+    const e = i - 4 * per;
+    return { x: 400 - (e % 8) * 40, y: 478 + Math.floor(e / 8) * 34 };
+  }
+
+  const no = (x, y, html, cls = "") => `<span class="no3d ${cls}" style="transform:translate3d(${x}px,${y}px,0)">${html}</span>`;
+  const bb = (w, h, inner, extra = "") => `<span class="bb" style="left:${-w / 2}px;width:${w}px;height:${h}px;${extra}">${inner}</span>`;
+  const planta = `<svg viewBox="0 0 44 64" aria-hidden="true" style="width:100%;height:100%;display:block"><path d="M12 44 L32 44 L29 63 L15 63 Z" fill="#9A5B3C"/><ellipse cx="22" cy="26" rx="18" ry="20" fill="#3E7B4F"/><ellipse cx="14" cy="20" rx="9" ry="12" fill="#4E8E5C"/><ellipse cx="29" cy="30" rx="9" ry="11" fill="#2E5E3B"/></svg>`;
+  const poste = `<span style="display:block;width:100%;height:100%;background:#3B3A36;border-radius:2px"></span>`;
+
+  function montarFixo() {
+    let h = "";
+    h += `<div class="parede" style="left:0;top:-90px;width:100%;height:90px;transform-origin:50% 100%;transform:rotateX(-90deg);box-shadow:inset 0 6px 0 #BDB6A8,inset 0 -10px 0 #B5AE9F">
+            <div class="relogio-parede" aria-hidden="true"><span class="ph" id="ponteiro-h"></span><span class="pm" id="ponteiro-m"></span></div>
+            <div class="placa">Restaurante Universitário</div></div>`;
+    h += `<div class="parede" style="left:100%;top:0;width:90px;height:100%;transform-origin:0 50%;transform:rotateY(-90deg);background:#C9C3B6;box-shadow:inset -6px 0 0 #B5AE9F"></div>`;
+    [[0, 420], [560, 840], [940, 1000]].forEach(([a, b]) => {
+      h += `<div class="parede" style="left:${a}px;top:100%;width:${b - a}px;height:14px;transform-origin:50% 0;transform:rotateX(-90deg) translateY(-14px);background:#BDB6A8"></div>`;
+    });
+    h += `<div class="parede" style="left:-14px;top:0;width:14px;height:100%;transform-origin:100% 50%;transform:rotateY(90deg);background:#C9C3B6"></div>`;
+    h += `<div style="position:absolute;left:440px;top:515px;width:100px;height:40px;background:#7A6A55;border-radius:4px"></div>`;
+    const fitas = [[140, 560, 162], [60, 470, 263], [140, 560, 364], [60, 470, 448]];
+    fitas.forEach(([a, b, y]) => { h += `<div class="fita" style="left:${a}px;width:${b - a}px;top:${y}px"></div>`; });
+    fitas.forEach(([a, b, y]) => { h += no(a, y, bb(5, 24, poste)) + no(b, y, bb(5, 24, poste)); });
+    MESA.forEach((m, j) => {
+      h += `<div id="mesa-${j}" class="camada" ${j === 1 ? "hidden" : ""}>`;
+      h += `<div class="mesa-sombra" style="left:${m.x}px;top:${m.y}px;width:${m.w}px;height:${m.h}px"></div>`;
+      h += `<div class="mesa-tampo" style="left:${m.x}px;top:${m.y}px;width:${m.w}px;height:${m.h}px"><div class="papel" id="papel-${j}"></div></div>`;
+      h += no(m.func.x, m.func.y, bb(24, 56, svgFuncionario), `funcionario" id="func-${j}`);
+      h += no(m.func.x + 14, m.func.y + 26, `<span class="mancha" style="background:rgba(0,0,0,.12)"></span>`);
+      h += no(m.pessoa.x, m.pessoa.y, bb(30, 30, `<svg class="anel" id="anel-${j}" viewBox="0 0 30 30" aria-hidden="true" style="display:none"><circle cx="15" cy="15" r="11" fill="#FFFFFF" stroke="#DCDFD7" stroke-width="3"/><circle id="anel-arco-${j}" cx="15" cy="15" r="11" fill="none" stroke="#2457A6" stroke-width="3" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="69.1" transform="rotate(-90 15 15)"/><text id="anel-txt-${j}" x="15" y="18.5" text-anchor="middle" font-size="9" font-weight="700" fill="#22241F" font-family="Atkinson Hyperlegible, sans-serif"></text></svg>`, "bottom:66px"));
+      if (j === 1) h += no(m.x + m.w / 2, m.y + m.h / 2, bb(56, 22, `<span id="placa-fechada" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#FFFFFF;border:2px solid #B3261E;color:#B3261E;font:700 11px/1 var(--f-texto);border-radius:3px">FECHADO</span>`, "bottom:34px"));
+      h += `</div>`;
+    });
+    [[710, 392], [710, 459], [710, 526], [30, 515], [980, 20]].forEach(([x, y]) => {
+      h += no(x, y, `<span style="position:absolute;left:-20px;top:-12px;width:40px;height:24px;border-radius:50%;background:rgba(0,0,0,.15)"></span>` + bb(44, 64, planta));
+    });
+    MESAS_REF.forEach(t => {
+      h += `<div class="mesa-sombra" style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px"></div>`;
+      h += `<div class="mesa-ref" style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px"></div>`;
+    });
+    fixo.innerHTML = h;
+  }
+
+  const pessoas = new Map();
+  let lidos = 0, ultimoS = null, minutoAria = -1;
+  const lugarOcupado = new Array(LUGARES.length).fill(null);
+  const mesaAtual = [null, null], etapaVista = [-1, -1];
+  const papeis = [[], []];
+
+  function fatorVel() { return vel >= 300 ? 0.45 : vel >= 120 ? 0.75 : 1; }
+  const deslize = () => REDUZ || vel >= 300;
+
+  function criar(id, tipo, x, y) {
+    const a = aparencia(id);
+    const nodo = document.createElement("span");
+    nodo.className = "pessoa";
+    nodo.style.setProperty("--atraso", (-((id * 0.37) % 3)).toFixed(2) + "s");
+    const mancha = tipo === "pico" ? "rgba(224,123,26,.6)" : tipo === "calma" ? "rgba(36,87,166,.45)" : "transparent";
+    nodo.innerHTML = `<span class="mancha" style="background:${mancha}"></span><span class="bb"><div class="vira"><div class="inclina">${svgPessoa(a)}</div></div></span>`;
+    nodo.style.transform = `translate3d(${x}px,${y}px,0)`;
+    camada.appendChild(nodo);
+    const p = { id, tipo, el: nodo, vira: nodo.querySelector(".vira"), x, y, rota: [], ao: null, estado: "fila", slot: -1, lugar: -1, fimRef: 0, mesa: -1 };
+    nodo.addEventListener("transitionend", e => { if (e.target === nodo && e.propertyName === "transform") proximo(p); });
+    pessoas.set(id, p);
+    return p;
+  }
+  function remover(p) { clearTimeout(p.guarda); p.el.remove(); pessoas.delete(p.id); }
+
+  function irPara(p, pontos, ao) { p.rota = pontos.slice(); p.ao = ao || null; proximo(p); }
+  function proximo(p) {
+    clearTimeout(p.guarda);
+    const alvo = p.rota.shift();
+    if (!alvo) {
+      p.el.classList.remove("andando");
+      const ao = p.ao; p.ao = null; if (ao) ao();
+      return;
+    }
+    const dx = alvo.x - p.x, dy = alvo.y - p.y, dist = Math.hypot(dx, dy);
+    if (dist < 0.5) { proximo(p); return; }
+    const telaX = dx * COS + dy * SIN;
+    if (Math.abs(telaX) > 2) p.vira.classList.toggle("esq", telaX < 0);
+    const dur = Math.min(0.8, Math.max(0.5, dist / 320)) * fatorVel();
+    p.el.style.transitionDuration = dur.toFixed(2) + "s";
+    p.x = alvo.x; p.y = alvo.y;
+    p.el.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
+    p.el.classList.toggle("andando", !deslize());
+    p.guarda = setTimeout(() => proximo(p), dur * 1000 + 120);
+  }
+
+  function papelNovo(j, a) {
+    papeis[j].push({ id: a.id, nome: primeiro(a.id), tinta: tinta(a.tipo), fechada: false });
+    if (papeis[j].length > 5) papeis[j].shift();
+    desenharPapel(j);
+  }
+  function desenharPapel(j) {
+    $("papel-" + j).innerHTML = papeis[j].map(l => `<div class="${l.fechada ? "fechada" : ""}" data-id="${l.id}"><span style="color:${l.tinta};width:${l.fechada ? "auto" : "0"}">${l.nome}</span></div>`).join("");
+  }
+  function papelEtapa(j, id, e, k) {
+    const linha = $("papel-" + j).querySelector(`[data-id="${id}"] span`);
+    if (linha) linha.style.width = (Math.max(0, Math.min(1, e / k)) * 7) + "ch";
+  }
+  function papelFecha(j, id) {
+    const l = papeis[j].find(x => x.id === id); if (!l) return;
+    l.fechada = true;
+    const d = $("papel-" + j).querySelector(`[data-id="${id}"]`);
+    if (d) { d.classList.add("fechada"); d.firstChild.style.width = "auto"; }
+  }
+
+  function reset() {
+    pessoas.forEach(p => { clearTimeout(p.guarda); p.el.remove(); });
+    pessoas.clear(); lidos = 0; lugarOcupado.fill(null); minutoAria = -1;
+    mesaAtual[0] = mesaAtual[1] = null; etapaVista[0] = etapaVista[1] = -1;
+    papeis[0] = []; papeis[1] = []; desenharPapel(0); desenharPapel(1);
+    [0, 1].forEach(j => { $("anel-" + j).style.display = "none"; });
+  }
+
+  function atualizar(i) {
+    if (S !== ultimoS) { ultimoS = S; reset(); }
+    const totalMin = 20 + i.t * DT_S / 60;
+    $("ponteiro-h").style.transform = `translate(-50%,-100%) rotate(${((5 + totalMin / 60) % 12) * 30}deg)`;
+    $("ponteiro-m").style.transform = `translate(-50%,-100%) rotate(${(totalMin % 60) * 6}deg)`;
+    const minuto = Math.floor(i.t / POR_MIN);
+    if (minuto !== minutoAria) {
+      minutoAria = minuto;
+      $("palco").setAttribute("aria-label", `RU em perspectiva às ${hora(Math.min(minuto, DUR))} com ${i.fila.length} alunos na fila`);
+    }
+    $("mesa-1").hidden = !i.dois;
+    $("func-1").style.visibility = i.aberta2 ? "visible" : "hidden";
+    $("placa-fechada").style.display = i.dois && !i.aberta2 ? "flex" : "none";
+
+    i.fila.forEach((a, idx) => {
+      let p = pessoas.get(a.id);
+      const alvo = posFila(idx);
+      if (!p) {
+        if (i.t === 0) { p = criar(a.id, a.tipo, alvo.x, alvo.y); p.slot = idx; return; }
+        p = criar(a.id, a.tipo, ENTRADA_FORA.x, ENTRADA_FORA.y);
+        p.estado = "chegando"; p.slot = idx;
+        void p.el.offsetWidth;
+        irPara(p, [ENTRADA_DENTRO, alvo], () => { p.estado = "fila"; });
+        return;
+      }
+      if (p.slot !== idx) {
+        p.slot = idx;
+        if (p.estado === "chegando" && p.rota.length) p.rota[p.rota.length - 1] = alvo;
+        else irPara(p, [alvo]);
+      }
+    });
+
+    const { k } = i;
+    [0, 1].forEach(j => {
+      const m = i.mesas[j];
+      const id = m ? m.id : null;
+      const anel = $("anel-" + j);
+      if (id !== mesaAtual[j]) {
+        mesaAtual[j] = id; etapaVista[j] = -1;
+        if (m) {
+          let p = pessoas.get(id);
+          if (!p) p = criar(id, m.tipo, ENTRADA_DENTRO.x, ENTRADA_DENTRO.y);
+          p.estado = "mesa"; p.mesa = j; p.slot = -1;
+          p.el.classList.remove("assinando");
+          irPara(p, [MESA[j].pessoa], () => { if (p.estado === "mesa") { p.vira.classList.remove("esq"); p.el.classList.add("assinando"); } });
+          papelNovo(j, m);
+        }
+      }
+      if (m) {
+        anel.style.display = "block";
+        $("anel-arco-" + j).setAttribute("stroke-dashoffset", (69.1 * (1 - m.e / k)).toFixed(1));
+        $("anel-txt-" + j).textContent = m.e;
+        if (m.e !== etapaVista[j]) {
+          if (etapaVista[j] >= 0 && Math.floor(m.e / 5) > Math.floor(etapaVista[j] / 5) && !REDUZ) {
+            const f = $("func-" + j); f.classList.remove("acena"); void f.offsetWidth; f.classList.add("acena");
+          }
+          etapaVista[j] = m.e;
+          papelEtapa(j, id, m.e, k);
+        }
+      } else {
+        anel.style.display = "none";
+      }
+    });
+
+    i.novos.forEach(a => {
+      let p = pessoas.get(a.id);
+      const j = a.ponto - 1;
+      if (!p) p = criar(a.id, a.tipo, MESA[j].pessoa.x, MESA[j].pessoa.y);
+      papelFecha(j, a.id);
+      p.el.classList.remove("assinando");
+      const livre = lugarOcupado.indexOf(null);
+      if (livre >= 0) {
+        lugarOcupado[livre] = a.id; p.lugar = livre; p.estado = "indo"; p.fimRef = a.assinou + REFEICAO;
+        irPara(p, [MESA[j].rota, { x: 740, y: MESA[j].rota.y }, LUGARES[livre]], () => {
+          if (p.estado === "indo") { p.estado = "comendo"; p.el.classList.add("sentado"); }
+        });
+      } else {
+        p.estado = "saindo";
+        irPara(p, [MESA[j].rota, { x: 740, y: MESA[j].rota.y }, SAIDA_DENTRO, SAIDA_FORA], () => remover(p));
+      }
+    });
+    lidos = i.total;
+
+    pessoas.forEach(p => {
+      if ((p.estado === "comendo" || p.estado === "indo") && i.t >= p.fimRef) {
+        lugarOcupado[p.lugar] = null; p.lugar = -1; p.estado = "saindo";
+        p.el.classList.remove("sentado");
+        irPara(p, [SAIDA_DENTRO, SAIDA_FORA], () => remover(p));
+      }
+    });
+  }
+
+  montarFixo();
+  return { atualizar, get lidos() { return lidos; } };
+})();
+
+// ---------------------------------------------------------------- três perguntas do passo (só leitura)
+const Perguntas = (() => {
+  let ultCheg = 0, ultChave = "", ultPico = null, ultS = null;
+  const timers = {};
+  function acende(id, extra) {
+    const e = $(id); e.classList.add("aceso"); e.classList.toggle("pico-on", !!extra);
+    clearTimeout(timers[id]); timers[id] = setTimeout(() => e.classList.remove("aceso"), REDUZ ? 120 : 380);
+  }
+  return function atualizar() {
+    if (S !== ultS) { ultS = S; ultCheg = 0; ultChave = ""; ultPico = S.pico; }
+    $("passo-txt").textContent = `passo ${Math.min(S.t, PASSOS).toLocaleString("pt-BR")} de ${PASSOS.toLocaleString("pt-BR")} · ${D.R} jantares`;
+    const cheg = S.arr.reduce((a, b) => a + b, 0);
+    if (cheg > ultCheg) acende("pq-cheg");
+    ultCheg = cheg;
+    $("pq-cheg-r").innerHTML = `${cheg} <small>chegadas</small>`;
+    const { k } = cenParams(cenario), s = S.serv[0];
+    const chave = `${s.aluno ? s.aluno.id : "-"}:${s.e}`;
+    if (chave !== ultChave && s.e > 0) acende("pq-etapa");
+    ultChave = chave;
+    $("pq-etapa-r").innerHTML = s.aluno ? `${s.e} <small>de ${k} etapas</small>` : `– <small>mesa livre</small>`;
+    if (S.pico !== ultPico) acende("pq-fase", S.pico);
+    ultPico = S.pico;
+    const r = $("pq-fase-r");
+    r.textContent = S.pico ? "Pico" : "Calma";
+    r.style.color = S.pico ? "var(--laranja-txt)" : "var(--azul)";
+  };
+})();
+
+// ---------------------------------------------------------------- painel ao vivo
+const FAIXA_COND = D.validacao.find(v => v.letra === "C");
+const FAIXA_LIVRE = D.um_vs_500;
+let estadoAtual = "";
+function atualizarPainel() {
+  const m = Math.min(Math.floor(S.t / POR_MIN), DUR - 1);
+  const fim = S.t >= PASSOS;
+  $("relogio").textContent = hora(fim ? DUR : m);
+  const est = fim ? "fim" : S.pico ? "pico" : "calma";
+  if (est !== estadoAtual) {
+    estadoAtual = est;
+    const fe = $("fase");
+    fe.className = "estado" + (est === "pico" ? " pico" : est === "fim" ? " encerrado" : "");
+    fe.textContent = est === "pico" ? `Pico: chegam ~${fmt(P.lam_p, 1)} por min` : est === "fim" ? "Jantar encerrado" : `Calma: chegam ~${fmt(P.lam_c, 1)} por min`;
+  }
+  $("c-n").textContent = S.n;
+  $("c-fila").textContent = S.fila.length;
+  const cheg = S.arr.reduce((a, b) => a + b, 0), sai = S.sai.reduce((a, b) => a + b, 0);
+  $("c-cheg").textContent = cheg;
+  $("c-sai").textContent = sai;
+  if (S.nmin.length > 0 && cheg > 0) {
+    const L = media(S.nmin), lam = cheg / S.nmin.length;
+    $("c-l").textContent = fmt(L, 1);
+    $("c-w").innerHTML = `${fmt(L / lam, 1)}<small> min</small>`;
+  } else { $("c-l").textContent = "–"; $("c-w").textContent = "–"; }
+}
+
+let ultimoMinDesenhado = -1;
+function graficoVivo() {
+  const usarCond = modo === "medidas" && cenario === "atual";
+  const series = [];
+  if (cenario === "atual") {
+    const fx = usarCond ? FAIXA_COND : FAIXA_LIVRE;
+    series.push({ tipo: "faixa", lo: fx.lo, hi: fx.hi, cor: cor("azul"), op: .16 });
+    $("leg-faixa").textContent = usarCond ? `Faixa de 90% (${D.R} jantares, chegadas medidas)` : `Faixa de 90% (${D.R} jantares, sorteadas)`;
+  } else {
+    $("leg-faixa").textContent = "Faixa de 90% (só no cenário de hoje)";
+  }
+  series.push({ dados: M.no_sistema, cor: cor("ink"), w: 2.5 });
+  const sim = [P.n0].concat(S.nmin).slice(0, DUR);
+  series.push({ dados: sim, cor: cor("azul"), w: 3.5, ponta: S.t < PASSOS });
+  grafico($("g-vivo"), { yMax: 60, passoY: 20, series, picos: modo === "medidas" });
+}
+
+function fimDeJantar() {
+  rodando = false; $("btn-play").textContent = "Começar o jantar";
+  const cheg = S.arr.reduce((a, b) => a + b, 0);
+  const L = media(S.nmin), W = L / (cheg / DUR);
+  $("fim-w").textContent = `W = ${fmt(W, 2)} min`;
+  const nomeCen = CEN.find(c => c.cod === cenario).desc;
+  $("fim-txt").textContent = `${nomeCen} · L = ${fmt(L, 1)} alunos em média · medido no dia: ${fmt(P.W_real, 2)} min com 1 atendente`;
+  $("fim").hidden = false;
+}
+
+// ---------------------------------------------------------------- laço de animação
+let tAnterior = performance.now();
+function quadro(agora) {
+  const dtReal = Math.min(0.1, (agora - tAnterior) / 1000); tAnterior = agora;
+  if (rodando && S.t < PASSOS) {
+    S.acum += dtReal * vel;
+    let n = Math.floor(S.acum / DT_S); S.acum -= n * DT_S;
+    while (n-- > 0 && S.t < PASSOS) passo();
+    if (S.t >= PASSOS) fimDeJantar();
+  }
+  Cena.atualizar(instantaneo(Cena.lidos));
+  Perguntas();
+  atualizarPainel();
+  if (S.nmin.length !== ultimoMinDesenhado) { ultimoMinDesenhado = S.nmin.length; graficoVivo(); }
+  requestAnimationFrame(quadro);
+}
+
+function reiniciar() {
+  novoJantar(); $("fim").hidden = true; ultimoMinDesenhado = -1;
+  if (S && !rodando) $("btn-play").textContent = "Começar o jantar";
+}
+function alternar() {
+  if (S.t >= PASSOS) { reiniciar(); }
+  rodando = !rodando;
+  $("btn-play").textContent = rodando ? "Pausar" : "Continuar";
+}
+
+// controles
+function montarSeg(id, opcoes, atual, aoMudar) {
+  const g = $(id);
+  g.innerHTML = opcoes.map(o => `<button type="button" id="${id}-${o.v}" data-v="${o.v}" aria-pressed="${o.v === atual}">${o.t}</button>`).join("");
+  g.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    g.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    aoMudar(b.dataset.v);
+  });
+}
+montarSeg("seg-cen", CEN.map(c => ({ v: c.cod, t: c.rot })), cenario, v => { cenario = v; reiniciar(); });
+montarSeg("seg-vel", [20, 60, 120, 300].map(v => ({ v: String(v), t: v + "×" })), "20", v => { vel = Number(v); });
+$("seg-modo").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  $("seg-modo").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  modo = b.dataset.modo; reiniciar();
+});
+function escolherCenario(cod) {
+  cenario = cod;
+  $("seg-cen").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.v === cod));
+  reiniciar();
+}
+$("btn-play").addEventListener("click", alternar);
+$("btn-reset").addEventListener("click", () => { rodando = false; reiniciar(); $("btn-play").textContent = "Começar o jantar"; });
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea")) return;
+  if (e.code === "Space") { e.preventDefault(); alternar(); }
+  else if (e.key === "r" || e.key === "R") { rodando = false; reiniciar(); $("btn-play").textContent = "Começar o jantar"; }
+});
+
+// ---------------------------------------------------------------- validação (compacta, na tela)
+function montarValidacao() {
+  const lB = D.validacao.find(v => v.letra === "B"), lC = D.validacao.find(v => v.letra === "C");
+  const larg = v => media(v.hi.map((h, i) => h - v.lo[i]));
+  const razao = larg(lB) / larg(lC);
+  const yMax = Math.ceil(Math.max(...D.validacao.flatMap(v => v.hi)) / 10) * 10;
+  const box = $("val-graf");
+  box.innerHTML = "";
+  [[lB, "B · atendimento exponencial (aula)", `faixa de ${Math.round(Math.min(...lB.lo))} a ${Math.round(Math.max(...lB.hi))} alunos`, "la", cor("laranja")],
+   [lC, `C · atendimento em ${P.k} etapas`, `faixa ${fmt(razao, 1)}× mais estreita`, "az", cor("azul")]].forEach(([v, titulo, tag, cls, c]) => {
+    const f = document.createElement("figure");
+    f.className = "cartao";
+    f.innerHTML = `<figcaption><b>${titulo}</b><span class="tag ${cls}">${tag}</span></figcaption>
+      <svg class="graf" viewBox="0 0 560 270" role="img" aria-label="Modelo ${v.letra}: fila simulada e medida"></svg>`;
+    box.appendChild(f);
+    grafico(f.querySelector("svg"), {
+      yMax, passoY: 10, passoX: 10, marca1737: true,
+      series: [
+        { tipo: "faixa", lo: v.lo, hi: v.hi, cor: c, op: .22 },
+        { dados: v.media, cor: c, w: 2.5 },
+        { dados: M.no_sistema, cor: cor("ink"), w: 2.5 },
+      ],
+    });
+  });
+  // verificação: o programa rodando em regime contra a distribuição π da cadeia
+  const V = D.verificacao;
+  if (V) {
+    $("val-pi").innerHTML = `
+      <h3>O programa faz o que a cadeia diz?</h3>
+      <p>Rodamos o simulador horas seguidas e comparamos com a conta exata da cadeia de Markov (π).</p>
+      <table class="val-tab">
+        <thead><tr><th></th><th>π (exato)</th><th>100 h</th><th>1.000 h</th></tr></thead>
+        <tbody>
+          <tr><td>Atendente ocupado</td><td><b>${pct1(V.pi.ocupado)}</b></td><td>${pct1(V.h100.ocupado)}</td><td>${pct1(V.h1000.ocupado)}</td></tr>
+          <tr><td>Alunos no sistema (média)</td><td><b>${fmt(V.pi.L, 1)}</b></td><td>${fmt(V.h100.L, 1)}</td><td>${fmt(V.h1000.L, 1)}</td></tr>
+        </tbody>
+      </table>
+      <p>Com poucos picos em 100 h a média ainda oscila; com mais horas ela se aproxima de π.</p>`;
+  } else {
+    $("val-pi").hidden = true;
+  }
+  // chegadas: índice D, a medida que o modelo sem fases não imita
+  const mA = D.modelos.find(m => m.letra === "A"), mC = D.modelos.find(m => m.letra === "C");
+  const dentroD = m => P.D_real >= m.D_faixa[0] && P.D_real <= m.D_faixa[1];
+  const linhaD = (m, nome) => `<tr><td>${nome}</td><td><b>${fmt(m.D, 2)}</b></td><td>${fmt(m.D_faixa[0], 2)} a ${fmt(m.D_faixa[1], 2)}</td>
+      <td class="${dentroD(m) ? "ok" : "nao"}">${dentroD(m) ? "✓ imita" : "✗ não imita"}</td></tr>`;
+  $("val-d").innerHTML = `
+    <h3>Chegadas: as rajadas (índice D)</h3>
+    <p>D = variância ÷ média das chegadas por minuto. Sem rajadas, D fica perto de 1. Medido no dia: <b>${fmt(P.D_real, 2)}</b>.</p>
+    <table class="val-tab">
+      <thead><tr><th>Modelo</th><th>D</th><th>Faixa de 90%</th><th></th></tr></thead>
+      <tbody>${linhaD(mA, "A · sem fases")}${linhaD(mC, "C · com calma e pico")}</tbody>
+    </table>
+    <p>Sem as fases, o modelo não consegue produzir as rajadas que medimos.</p>`;
+
+  const dif = Math.abs(lC.W - P.W_real) / P.W_real * 100;
+  $("val-num").innerHTML = `
+    <div><span>Erro médio da curva</span><b>${fmt(lC.rmse, 1)} <small>aluno</small></b><em>${fmt(lC.rmse18, 1)} no trecho usado para calibrar (até 17h37)</em></div>
+    <div><span>Tempo no sistema</span><b>${fmt(lC.W, 2)} <small>× ${fmt(P.W_real, 2)} min</small></b><em>simulado × medido · diferença de ${fmt(dif, 1)}%</em></div>
+    <div><span>Fila real dentro da faixa</span><b>${pct(lC.cobertura)} <small>dos minutos</small></b><em>faixa de 90% dos ${D.R} jantares</em></div>`;
+}
+
+// ---------------------------------------------------------------- cenários (abaixo da tela)
+const ESTILO_CEN = () => ({
+  atual:      { cor: cor("laranja"), barra: cor("laranja") },
+  "2_pico":   { cor: cor("ink"), barra: cor("ink") },
+  "2_sempre": { cor: cor("azul"), barra: cor("azul") },
+  qr:         { cor: cor("azul"), barra: `repeating-linear-gradient(135deg, ${cor("azul")} 0 3px, transparent 3px 7px)`, trac: "8 6", borda: true },
+});
+function montarCenarios() {
+  const ec = ESTILO_CEN();
+  const wMax = Math.ceil(Math.max(...D.cenarios.map(c => c.W_faixa[1])) / 2) * 2;
+  const lista = $("cen-lista");
+  lista.innerHTML = "";
+  D.cenarios.forEach((c, idx) => {
+    const meta = CEN.find(x => x.cod === c.cod), e = ec[c.cod];
+    const corP = c.p5 >= 0.95 ? "var(--azul)" : c.p5 >= 0.5 ? "var(--ink)" : "var(--laranja-txt)";
+    const x = v => (v / wMax * 86) + "%";
+    const pos = v => v / wMax * 86;
+    const linha = document.createElement("div");
+    linha.className = "cen-linha";
+    linha.innerHTML = `
+      <div class="cen-nome">${meta.desc}<small>${c.cod === "qr" ? "hipótese, sem medição" : `L = ${fmt(c.L, 1)} alunos`}</small></div>
+      <div class="cen-barra" role="img" aria-label="Tempo médio ${fmt(c.W, 1)} minutos">
+        <div class="trilho"></div>
+        <div class="barra" style="width:${x(c.W)}; background:${e.barra};${e.borda ? ` outline:2px solid ${e.cor}; outline-offset:-2px;` : ""}"></div>
+        <div class="bigode" style="left:${x(c.W_faixa[0])}; width:${pos(c.W_faixa[1]) - pos(c.W_faixa[0])}%"></div>
+        <div class="meta" style="left:${x(5)}">${idx === 0 ? "<span>meta: 5 min</span>" : ""}</div>
+        <div class="valor" style="left:${x(Math.max(c.W_faixa[1], c.W))}">${fmt(c.W, 1)} min</div>
+      </div>
+      <div class="cen-p"><b style="color:${corP}">${pct(c.p5)}</b><span>jantares abaixo de 5 min</span></div>
+      <button type="button" class="btn mini" data-cen="${c.cod}">Ver na simulação ↑</button>`;
+    lista.appendChild(linha);
+  });
+  lista.onclick = e => {
+    const b = e.target.closest("button[data-cen]"); if (!b) return;
+    escolherCenario(b.dataset.cen);
+    window.scrollTo({ top: 0, behavior: REDUZ ? "auto" : "smooth" });
+  };
+  $("leg-cen").innerHTML = D.cenarios.map(c => `<span><i class="${ec[c.cod].trac ? "trac" : ""}" style="color:${ec[c.cod].cor}"></i>${CEN.find(x => x.cod === c.cod).desc}</span>`).join("");
+  grafico($("g-cen"), { yMax: 40, passoY: 10, margem: { l: 40, b: 30 }, series: D.cenarios.map(c => ({ dados: c.media, cor: ec[c.cod].cor, w: 3, tracejado: ec[c.cod].trac })) });
+}
+
+// ---------------------------------------------------------------- início
+novoJantar();
+montarValidacao(); montarCenarios();
+requestAnimationFrame(t => { tAnterior = t; requestAnimationFrame(quadro); });
+})();
+</script>
+</body>
+</html>
